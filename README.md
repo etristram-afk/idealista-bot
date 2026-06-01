@@ -34,7 +34,7 @@ No server required. The bot runs on your own machine while it's on.
 ### 1. Install dependencies
 
 ```bash
-git clone https://github.com/yourusername/idealista-bot.git
+git clone https://github.com/etristram-afk/idealista-bot.git
 cd idealista-bot
 pip3 install -r requirements.txt
 patchright install chromium
