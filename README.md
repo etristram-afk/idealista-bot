@@ -112,7 +112,7 @@ cp .env.example .env
 
 Log into idealista.com → go to your saved search → enable email notifications. The bot only runs when these emails arrive, so this step is essential.
 
-### 3. Create a browser session (run once from a Mac)
+### 3. Create a browser session (run once from computer)
 
 ```bash
 pip3 install requests websocket-client
