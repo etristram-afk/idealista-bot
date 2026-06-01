@@ -18,16 +18,16 @@ Monitors idealista.com for new rental listings matching your search, contacts ag
 
 ## Requirements
 
-- A server or NAS running Docker (tested on Synology NAS)
-- A Mac (or any machine with Chrome) to run the one-time session setup
-- An [idealista.com](https://www.idealista.com) account with email alerts enabled for your saved search
+- A server or NAS running Docker
+- Chrome to run the one-time session setup
+- An [idealista.com](https://www.idealista.com) account with email alerts enabled for your saved search with custom filters
 - A Telegram bot token ([create one with @BotFather](https://t.me/botfather))
 - A Gmail account that receives Idealista alerts, with a [Gmail App Password](https://myaccount.google.com/apppasswords)
 - A [CapSolver](https://www.capsolver.com) API key — highly recommended (~$2.50/1000 CAPTCHA solves, rarely needed with the email-trigger model)
 
 ---
 
-## Option A: Run directly on Mac or PC (simpler)
+## Option A: Run directly on computer (simpler)
 
 No server required. The bot runs on your own machine while it's on.
 
