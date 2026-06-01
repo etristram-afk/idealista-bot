@@ -1,0 +1,29 @@
+# Credentials & secrets
+.env
+.env.save
+google_credentials.json
+browser_state.json
+
+# Personal data
+listings/
+logs/
+listings_database.csv
+tracked_listings.json
+.google_sheet_id
+.last_run
+.last_telegram_update_id
+
+# Build / cache
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# Test files
+test_contact.py
+test_contact_page.png
+latest_screenshot.png
+/tmp/idealista_setup_debug.log

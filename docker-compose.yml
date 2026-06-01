@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  idealista-bot:
+    build: .
+    container_name: idealista-bot
+    restart: unless-stopped
+
+    volumes:
+      # App code — volume-mounted so file syncs take effect without rebuilding
+      - ./idealista_bot.py:/app/idealista_bot.py
+      - ./telegram_listener.py:/app/telegram_listener.py
+      - ./setup_session.py:/app/setup_session.py
+      - ./novnc_helper.py:/app/novnc_helper.py
+      - ./human_behavior.py:/app/human_behavior.py
+      - ./google_sheets_sync.py:/app/google_sheets_sync.py
+      - ./captcha_solver.py:/app/captcha_solver.py
+      - ./email_listener.py:/app/email_listener.py
+      - ./docker_entrypoint.sh:/app/docker_entrypoint.sh
+      # Persistent data
+      - ./listings:/app/listings
+      - ./logs:/app/logs
+      - ./listings_database.csv:/app/listings_database.csv
+      - ./tracked_listings.json:/app/tracked_listings.json
+      - ./browser_state.json:/app/browser_state.json
+      - ./.env:/app/.env:ro
+
+    environment:
+      - TZ=Europe/Madrid
+      - PYTHONUNBUFFERED=1
+      - DISPLAY=:99
+
+    shm_size: '256mb'
+
+    command: /bin/bash /app/docker_entrypoint.sh
