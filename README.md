@@ -95,7 +95,7 @@ Set this up as a daily cron job:
 
 ---
 
-## Option B: Docker on a NAS or server (always-on)
+## Option B: Docker on a server (always-on)
 
 ### 1. Configure
 
