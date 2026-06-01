@@ -2,7 +2,7 @@
 
 Monitors idealista.com for new rental listings matching your search, contacts agents automatically via the Idealista chat system, and sends you Telegram notifications with full listing details and photos.
 
-**Trigger model**: the bot wakes up instantly when Idealista sends you a notification email — no constant polling. This keeps request volume low and avoids bot-detection bans.
+**Trigger model**: the bot wakes up instantly when Idealista sends you a notification email (no constant polling.) This keeps request volume low and avoids bot-detection bans.
 
 ---
 
