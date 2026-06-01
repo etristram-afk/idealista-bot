@@ -102,7 +102,7 @@ Set this up as a daily cron job:
 On your server:
 
 ```bash
-git clone https://github.com/yourusername/idealista-bot.git
+git clone https://github.com/etristram-afk/idealista-bot.git
 cd idealista-bot
 cp .env.example .env
 # edit .env with your values
