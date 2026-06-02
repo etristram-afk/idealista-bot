@@ -138,9 +138,10 @@ def send_captcha_alert(reason, page_url, screenshot_path, env):
 
         is_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_ENV') == '1'
         if is_docker:
-            fix_instructions = "VNC to 192.168.1.152:5900 → open terminal → cd /app && python3 setup_session.py"
+            nas_host = os.environ.get('NAS_HOST', 'your-nas-host')
+            fix_instructions = f"VNC to {nas_host}:5900 → open terminal → cd /app && python3 setup_session.py"
         else:
-            fix_instructions = "cd /Users/edward/dev/idealista-bot && .venv/bin/python setup_session.py"
+            fix_instructions = "cd ~/dev/idealista-bot && .venv/bin/python setup_session.py"
 
         telegram_token = env.get('TELEGRAM_BOT_TOKEN', '')
         telegram_chat_id = env.get('TELEGRAM_CHAT_ID', '')

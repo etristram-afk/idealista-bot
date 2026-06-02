@@ -3,8 +3,8 @@
 # Usage: bash deploy_to_nas.sh
 set -e
 
-NAS_USER="edwardauth"
-NAS_HOST="192.168.1.152"
+NAS_USER="${NAS_USER:?Error: set NAS_USER before running (e.g. export NAS_USER=youruser)}"
+NAS_HOST="${NAS_HOST:?Error: set NAS_HOST before running (e.g. export NAS_HOST=192.168.x.x)}"
 NAS_DIR="/volume1/docker/idealista-bot"
 LOCAL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
