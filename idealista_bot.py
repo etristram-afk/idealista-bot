@@ -341,9 +341,14 @@ class IdealistaBot:
             logging.error("Please run: python3 setup_session.py")
             raise Exception("No saved session - run setup_session.py first")
 
-        # Patchright patches Chromium at the CDP level — headless mode is safe and faster.
+        # Headful so Chromium reports a normal Chrome UA. Patchright's CDP patches
+        # cover navigator.webdriver, plugins, etc. but not the UA string — that's
+        # baked into the binary build. Headless Chromium identifies itself as
+        # "HeadlessChrome/..." which DataDome catches on the first request,
+        # before any JS runs. Xvfb (DISPLAY=:99, started by docker_entrypoint.sh)
+        # provides the virtual framebuffer.
         self.browser = playwright.chromium.launch(
-            headless=True,
+            headless=False,
             args=["--no-sandbox", "--disable-dev-shm-usage"],
         )
 
@@ -351,17 +356,16 @@ class IdealistaBot:
         with open(STATE_FILE) as _f:
             _state = _json.load(_f)
 
-        # NOTE: no explicit user_agent — we rely on Patchright's patched Chromium UA
-        # (a clean Chrome-looking string with no "HeadlessChrome" leakage). CapSolver
-        # is given the same UA via `page.evaluate("navigator.userAgent")`, so the two
-        # stay in sync automatically. If Patchright is ever swapped for vanilla
-        # Playwright, set user_agent here explicitly to avoid the headless string.
+        # Explicit UA override: belt-and-suspenders in case the binary's default
+        # ever leaks "Headless" again. Matches Linux x86_64 Chrome 148 to stay
+        # consistent with navigator.platform reported from inside the container.
         self.context = self.browser.new_context(
             storage_state=_state,
             viewport={'width': 1280, 'height': 900},
             locale='es-ES',
             timezone_id='Europe/Madrid',
             permissions=['geolocation'],
+            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
         )
         self.page = self.context.new_page()
 
