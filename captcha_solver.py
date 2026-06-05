@@ -45,12 +45,20 @@ def _extract_datadome_captcha_url(page, attempts: int = 3, delay: float = 1.0) -
     return None, burned
 
 
-def _solve_via_capsolver(api_key: str, captcha_url: str, user_agent: str, timeout: int = 120) -> str | None:
-    logging.info(f"CapSolver createTask: type=DatadomeSliderTask ua={user_agent[:80]!r}")
+def _solve_via_capsolver(api_key: str, captcha_url: str, user_agent: str, timeout: int = 120, proxy: str | None = None) -> str | None:
+    # When a proxy is set, CapSolver solves *through* it so the DataDome cookie
+    # is bound to the same IP the browser uses. Without this the cookie would
+    # be tied to CapSolver's IP and reject when our (proxied) browser presents it.
+    task = {"type": "DatadomeSliderTask", "captchaUrl": captcha_url, "userAgent": user_agent}
+    if proxy:
+        task["proxy"] = proxy
+        logging.info(f"CapSolver createTask: type=DatadomeSliderTask ua={user_agent[:80]!r} proxy=set")
+    else:
+        logging.info(f"CapSolver createTask: type=DatadomeSliderTask ua={user_agent[:80]!r} proxy=none")
     try:
         resp = requests.post(
             f"{CAPSOLVER_ENDPOINT}/createTask",
-            json={"clientKey": api_key, "task": {"type": "DatadomeSliderTask", "captchaUrl": captcha_url, "userAgent": user_agent}},
+            json={"clientKey": api_key, "task": task},
             timeout=30,
         )
         data = resp.json()
@@ -98,10 +106,16 @@ def _solve_via_capsolver(api_key: str, captcha_url: str, user_agent: str, timeou
     return None
 
 
-def attempt_auto_solve(page, api_key: str) -> tuple[bool, bool]:
+def attempt_auto_solve(page, api_key: str, proxy: str | None = None) -> tuple[bool, bool]:
     """
     Detect DataDome challenge on the current page, solve it via CapSolver,
     inject the cookie, and reload.
+
+    Args:
+      proxy: optional proxy URL in the form scheme://[user:pass@]host:port.
+        Passed to CapSolver so the solve happens through the same egress
+        IP the browser is using — required when the browser itself is proxied,
+        otherwise DataDome will reject the resulting cookie as IP-mismatched.
 
     Returns (solved, burned):
       - solved: True if the challenge is cleared after cookie injection.
@@ -125,7 +139,7 @@ def attempt_auto_solve(page, api_key: str) -> tuple[bool, bool]:
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
         logging.warning(f"Could not read navigator.userAgent ({e}); falling back to default UA")
 
-    cookie_value = _solve_via_capsolver(api_key, captcha_url, user_agent)
+    cookie_value = _solve_via_capsolver(api_key, captcha_url, user_agent, proxy=proxy)
     if not cookie_value:
         logging.warning("CapSolver did not return a cookie")
         return False, False
