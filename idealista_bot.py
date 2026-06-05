@@ -461,17 +461,71 @@ class IdealistaBot:
             return False
 
     def dismiss_cookie_consent(self):
-        """Dismiss cookie consent popup if present, preferring reject."""
-        try:
-            for text in ["Rechazar", "Rechazar todo", "Aceptar y continuar"]:
-                btn = self.page.query_selector(f'button:has-text("{text}")')
-                if btn:
+        """
+        Dismiss cookie consent popup if present. Prefers reject; falls back to
+        opening a manage/settings panel and rejecting from inside; finally
+        accepts as last resort. Searches main frame plus iframes (some CMPs
+        render in iframes). Polls briefly so late-injected banners aren't
+        missed. Clicks with hover + delay so the input pattern doesn't
+        scream "bot".
+        """
+        REJECT_TEXTS = ("Rechazar todo", "Rechazar", "Reject all", "Reject")
+        MANAGE_TEXTS = ("Configurar", "Personalizar", "Más opciones", "Gestionar preferencias")
+        ACCEPT_TEXTS = ("Aceptar y continuar", "Aceptar todo", "Aceptar")
+
+        def find_button(texts, timeout_ms):
+            deadline = time.time() + (timeout_ms / 1000.0)
+            while time.time() < deadline:
+                for text in texts:
+                    for frame in self.page.frames:
+                        try:
+                            btn = frame.query_selector(f'button:text-is("{text}")')
+                            if btn:
+                                return btn, text
+                        except Exception:
+                            continue
+                time.sleep(0.2)
+            return None, None
+
+        def human_click(btn):
+            try:
+                random_mouse_movement(self.page)
+                btn.hover()
+                random_delay(0.3, 0.8)
+                btn.click()
+                random_delay(0.5, 1.2)
+            except Exception as e:
+                logging.debug(f"Human click failed, falling back to direct click: {e}")
+                try:
                     btn.click()
-                    logging.info(f"Dismissed cookie consent popup ({text})")
-                    random_delay(1, 2)
-                    return
-        except Exception as e:
-            logging.debug(f"Cookie consent dismissal: {e}")
+                except Exception as e2:
+                    logging.debug(f"Direct click also failed: {e2}")
+                    return False
+            return True
+
+        # 1. Direct reject (wait up to 3s for late-injected banner)
+        btn, text = find_button(REJECT_TEXTS, timeout_ms=3000)
+        if btn and human_click(btn):
+            logging.info(f"Dismissed cookie consent (reject: '{text}')")
+            return
+
+        # 2. Open manage/settings panel, then reject from inside
+        btn, text = find_button(MANAGE_TEXTS, timeout_ms=1500)
+        if btn and human_click(btn):
+            logging.info(f"Opened cookie settings panel ('{text}'), looking for reject")
+            btn2, text2 = find_button(REJECT_TEXTS, timeout_ms=3000)
+            if btn2 and human_click(btn2):
+                logging.info(f"Dismissed cookie consent via settings panel (reject: '{text2}')")
+                return
+            logging.debug("Settings panel opened but no reject button found inside")
+
+        # 3. Accept as last resort
+        btn, text = find_button(ACCEPT_TEXTS, timeout_ms=1500)
+        if btn and human_click(btn):
+            logging.info(f"Dismissed cookie consent (accept fallback: '{text}')")
+            return
+
+        logging.debug("No cookie consent banner found (absent or already dismissed)")
 
     def detect_captcha_or_block(self):
         """Check if current page is showing a captcha or access block. Returns (blocked, reason)."""
