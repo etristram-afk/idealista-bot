@@ -76,6 +76,37 @@ def save_tracked_listings(listings):
 CAPTCHA_ALERT_FILE = LOGS_DIR / "last_captcha_alert.txt"
 CAPTCHA_ALERT_COOLDOWN_HOURS = 1
 
+# IP burn cooldown: when DataDome serves t=bv, CapSolver can't help — back off
+# rather than hammering the site (which keeps the IP burned).
+IP_BURN_FILE = LOGS_DIR / "last_ip_burn.txt"
+IP_BURN_COOLDOWN_HOURS = 6
+
+
+def mark_ip_burn():
+    """Record the time DataDome served a t=bv (IP burn) response."""
+    try:
+        IP_BURN_FILE.write_text(datetime.now().isoformat())
+        logging.warning(
+            f"IP burn (t=bv) recorded — bot will back off for {IP_BURN_COOLDOWN_HOURS}h"
+        )
+    except Exception as e:
+        logging.debug(f"Could not write IP burn file: {e}")
+
+
+def is_ip_burned():
+    """Return (burned, hours_remaining) if we're inside the burn cooldown window."""
+    try:
+        if not IP_BURN_FILE.exists():
+            return False, 0.0
+        last = datetime.fromisoformat(IP_BURN_FILE.read_text().strip())
+        hours_since = (datetime.now() - last).total_seconds() / 3600
+        if hours_since < IP_BURN_COOLDOWN_HOURS:
+            return True, IP_BURN_COOLDOWN_HOURS - hours_since
+        return False, 0.0
+    except Exception as e:
+        logging.debug(f"Could not read IP burn file: {e}")
+        return False, 0.0
+
 
 def send_telegram(token, chat_id, text, reply_markup=None):
     """Send a Telegram message. Returns True on success."""
@@ -319,6 +350,11 @@ class IdealistaBot:
         with open(STATE_FILE) as _f:
             _state = _json.load(_f)
 
+        # NOTE: no explicit user_agent — we rely on Patchright's patched Chromium UA
+        # (a clean Chrome-looking string with no "HeadlessChrome" leakage). CapSolver
+        # is given the same UA via `page.evaluate("navigator.userAgent")`, so the two
+        # stay in sync automatically. If Patchright is ever swapped for vanilla
+        # Playwright, set user_agent here explicitly to avoid the headless string.
         self.context = self.browser.new_context(
             storage_state=_state,
             viewport={'width': 1280, 'height': 900},
@@ -327,6 +363,14 @@ class IdealistaBot:
             permissions=['geolocation'],
         )
         self.page = self.context.new_page()
+
+        try:
+            ua = self.page.evaluate("navigator.userAgent")
+            logging.info(f"Browser UA: {ua}")
+            if "HeadlessChrome" in ua or "Headless" in ua:
+                logging.warning("Browser UA contains 'Headless' — DataDome/CapSolver will likely reject it")
+        except Exception as e:
+            logging.debug(f"Could not read browser UA: {e}")
 
         logging.info("Loaded saved session with stealth mode")
 
@@ -442,7 +486,9 @@ class IdealistaBot:
             try:
                 html = self.page.content().lower()
                 if "var dd={'rt':'c'" in html:
-                    return True, "Cloudflare Bot Management challenge detected"
+                    # dd = DataDome bootstrap; rt:'c' = challenge type.
+                    # NOT Cloudflare — the wrong label has misled past debugging.
+                    return True, "DataDome challenge detected (dd bootstrap)"
                 captcha_html_phrases = [
                     'desliza hacia la derecha', 'desliza el control',
                     'verificación de seguridad', 'prueba que eres humano',
@@ -515,9 +561,14 @@ class IdealistaBot:
                 capsolver_key = self.env.get('CAPSOLVER_API_KEY', '')
                 if capsolver_key:
                     logging.info("Attempting DataDome auto-solve via CapSolver...")
-                    if attempt_auto_solve(self.page, capsolver_key):
+                    solved, burned = attempt_auto_solve(self.page, capsolver_key)
+                    if burned:
+                        mark_ip_burn()
+                    if solved:
                         logging.info("Auto-solve succeeded — retrying scrape")
                         blocked, reason = self.detect_captcha_or_block()
+                else:
+                    logging.warning("CAPSOLVER_API_KEY not set in .env — auto-solve skipped")
                 if blocked:
                     send_captcha_alert(reason, self.page.url, screenshot_path, self.env)
                     return []
@@ -591,10 +642,22 @@ class IdealistaBot:
             blocked, reason = self.detect_captcha_or_block()
             if blocked:
                 logging.error(f"CAPTCHA/BLOCK on listing page {listing_id}: {reason}")
-                screenshot_path = snapshot_dir / "captcha_block.png"
-                self.page.screenshot(path=str(screenshot_path))
-                send_captcha_alert(reason, listing_url, str(screenshot_path), self.env)
-                return False  # Don't mark as tracked — next run will retry
+                capsolver_key = self.env.get('CAPSOLVER_API_KEY', '')
+                if capsolver_key:
+                    logging.info(f"Attempting DataDome auto-solve via CapSolver for listing {listing_id}...")
+                    solved, burned = attempt_auto_solve(self.page, capsolver_key)
+                    if burned:
+                        mark_ip_burn()
+                    if solved:
+                        logging.info("Auto-solve succeeded — continuing with listing")
+                        blocked, reason = self.detect_captcha_or_block()
+                else:
+                    logging.warning("CAPSOLVER_API_KEY not set in .env — auto-solve skipped")
+                if blocked:
+                    screenshot_path = snapshot_dir / "captcha_block.png"
+                    self.page.screenshot(path=str(screenshot_path))
+                    send_captcha_alert(reason, listing_url, str(screenshot_path), self.env)
+                    return False  # Don't mark as tracked — next run will retry
 
             # Dismiss cookie banner on listing pages too
             self.dismiss_cookie_consent()
@@ -912,6 +975,13 @@ class IdealistaBot:
         logging.info(f"IDEALISTA BOT — EMAIL TRIGGERED ({len(urls)} listings)")
         logging.info("=" * 60)
 
+        burned, hours_remaining = is_ip_burned()
+        if burned:
+            logging.warning(
+                f"IP burn cooldown active ({hours_remaining:.1f}h remaining) — skipping run"
+            )
+            return
+
         with sync_playwright() as playwright:
             self.start_browser(playwright)
 
@@ -941,6 +1011,13 @@ class IdealistaBot:
         logging.info("=" * 60)
         logging.info("IDEALISTA BOT STARTING")
         logging.info("=" * 60)
+
+        burned, hours_remaining = is_ip_burned()
+        if burned:
+            logging.warning(
+                f"IP burn cooldown active ({hours_remaining:.1f}h remaining) — skipping run"
+            )
+            return
 
         with sync_playwright() as playwright:
             self.start_browser(playwright)
