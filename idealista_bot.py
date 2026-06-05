@@ -76,6 +76,43 @@ def save_tracked_listings(listings):
 CAPTCHA_ALERT_FILE = LOGS_DIR / "last_captcha_alert.txt"
 CAPTCHA_ALERT_COOLDOWN_HOURS = 1
 
+
+def build_proxy_config(env):
+    """
+    Read PROXY_SERVER / PROXY_USERNAME / PROXY_PASSWORD from env and return
+    (playwright_proxy_dict, capsolver_proxy_url) — or (None, None) if no proxy.
+
+    Both forms are needed: Playwright wants a dict on launch; CapSolver wants
+    a URL string with creds embedded so it can solve through the same egress IP
+    the browser uses (otherwise the cookie it returns is bound to CapSolver's
+    IP and our proxied browser is rejected when it presents the cookie).
+
+    Supports http/https/socks5 schemes — PROXY_SERVER should include the scheme
+    (e.g. http://gate.example.com:7777 or socks5://gate.example.com:1080).
+    """
+    server = env.get("PROXY_SERVER", "").strip()
+    if not server:
+        return None, None
+    user = env.get("PROXY_USERNAME", "").strip()
+    pwd = env.get("PROXY_PASSWORD", "").strip()
+
+    pw_dict = {"server": server}
+    if user:
+        pw_dict["username"] = user
+    if pwd:
+        pw_dict["password"] = pwd
+
+    if user and pwd:
+        if "://" in server:
+            scheme, rest = server.split("://", 1)
+        else:
+            scheme, rest = "http", server
+        capsolver_url = f"{scheme}://{user}:{pwd}@{rest}"
+    else:
+        capsolver_url = server
+
+    return pw_dict, capsolver_url
+
 # IP burn cooldown: when DataDome serves t=bv, CapSolver can't help — back off
 # rather than hammering the site (which keeps the IP burned).
 IP_BURN_FILE = LOGS_DIR / "last_ip_burn.txt"
@@ -347,10 +384,17 @@ class IdealistaBot:
         # "HeadlessChrome/..." which DataDome catches on the first request,
         # before any JS runs. Xvfb (DISPLAY=:99, started by docker_entrypoint.sh)
         # provides the virtual framebuffer.
-        self.browser = playwright.chromium.launch(
-            headless=False,
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
-        )
+        launch_kwargs = {
+            "headless": False,
+            "args": ["--no-sandbox", "--disable-dev-shm-usage"],
+        }
+        proxy_pw, _ = build_proxy_config(self.env)
+        if proxy_pw:
+            launch_kwargs["proxy"] = proxy_pw
+            logging.info(f"Browser using proxy: {proxy_pw['server']}")
+        else:
+            logging.debug("No PROXY_SERVER set — browser using direct connection")
+        self.browser = playwright.chromium.launch(**launch_kwargs)
 
         import json as _json
         with open(STATE_FILE) as _f:
@@ -620,7 +664,8 @@ class IdealistaBot:
                 capsolver_key = self.env.get('CAPSOLVER_API_KEY', '')
                 if capsolver_key:
                     logging.info("Attempting DataDome auto-solve via CapSolver...")
-                    solved, burned = attempt_auto_solve(self.page, capsolver_key)
+                    _, proxy_url = build_proxy_config(self.env)
+                    solved, burned = attempt_auto_solve(self.page, capsolver_key, proxy=proxy_url)
                     if burned:
                         mark_ip_burn()
                     if solved:
@@ -704,7 +749,8 @@ class IdealistaBot:
                 capsolver_key = self.env.get('CAPSOLVER_API_KEY', '')
                 if capsolver_key:
                     logging.info(f"Attempting DataDome auto-solve via CapSolver for listing {listing_id}...")
-                    solved, burned = attempt_auto_solve(self.page, capsolver_key)
+                    _, proxy_url = build_proxy_config(self.env)
+                    solved, burned = attempt_auto_solve(self.page, capsolver_key, proxy=proxy_url)
                     if burned:
                         mark_ip_burn()
                     if solved:
