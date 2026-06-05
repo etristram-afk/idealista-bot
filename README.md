@@ -6,6 +6,37 @@ Monitors idealista.com for new rental listings matching your search, contacts ag
 
 ---
 
+## ⚠ Before you run this: IP-flagging risk
+
+Idealista's edge is protected by [DataDome](https://datadome.co/), which fingerprints every request — IP reputation, TLS/HTTP signatures, browser identity, behavior over time. **Running this bot from any IP will, sooner or later, get that IP flagged** by DataDome. Once flagged, you'll see:
+
+- Stage 1: occasional slider CAPTCHAs (CapSolver handles these)
+- Stage 2: `t=bv` responses where DataDome refuses to even offer a CAPTCHA (CapSolver explicitly cannot help — the bot now backs off automatically for 6h via its IP-burn cooldown)
+- Stage 3: flat **HTTP 403** from the edge with no CAPTCHA at all — the IP is on the permanent blocklist
+
+**A flagged IP is hard to un-flag.** DataDome does not publish appeal channels. Resetting your router for a new dynamic IP only helps if (a) your ISP actually rotates and (b) the fingerprint problem upstream of the IP is fixed. Otherwise the new IP is reflagged within minutes.
+
+**What "any IP" means in practice:**
+
+| Egress | Outcome |
+|---|---|
+| Your home / NAS IP | Flagged within days–weeks of regular use |
+| Commercial VPN (ExpressVPN, NordVPN, M247 ranges, etc.) | Already pre-flagged — `403` from request one |
+| Datacenter IP (DigitalOcean, AWS, etc.) | Same as above |
+| Residential proxy (Spanish exit, paid) | Generally passes, but burnable per-IP if abused |
+| Mobile carrier / 4G hotspot | Generally passes (CGNAT shared with real users) |
+
+**Practical recommendations:**
+
+1. **Use a residential proxy from day one.** This bot now supports one via `PROXY_SERVER` / `PROXY_USERNAME` / `PROXY_PASSWORD` in `.env` — see [Environment variables](#environment-variables-reference). Spanish exit is correct for idealista.es. Providers worth pricing: IPRoyal (~$1.75/GB), Smartproxy (~$7/GB, $80/mo min), Bright Data (premium). The bot's traffic is tiny (a few hundred KB per listing) so even premium providers cost single-digit dollars/month for personal use.
+2. **Keep the trigger model.** The email-listener pattern in this repo is intentionally low-volume. Don't switch back to polling — it 10–100×s your request count and accelerates flagging.
+3. **Don't share residential-proxy credentials.** Most providers price per GB; abuse will get your account suspended.
+4. **If you're flagged, stop hammering.** Each retry from a burned IP makes the flag stickier. The bot's IP-burn cooldown enforces this automatically, but you should also resist manually `/retry`-ing during the cooldown window.
+
+If you don't want to set up a residential proxy, this bot will still run — it just won't survive contact with DataDome for very long. Plan accordingly.
+
+---
+
 ## How it works
 
 1. **Email listener** watches your Gmail inbox via IMAP IDLE
