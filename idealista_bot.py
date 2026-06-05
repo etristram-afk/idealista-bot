@@ -383,7 +383,7 @@ class IdealistaBot:
         """Login to idealista.com"""
         try:
             logging.info("Navigating to idealista.com...")
-            self.page.goto("https://www.idealista.com", wait_until="networkidle")
+            self.page.goto("https://www.idealista.com", wait_until="domcontentloaded")
             time.sleep(2)
 
             # Look for login button
@@ -407,7 +407,7 @@ class IdealistaBot:
 
             if not login_clicked:
                 logging.warning("Could not find login button, trying direct navigation")
-                self.page.goto("https://www.idealista.com/login", wait_until="networkidle")
+                self.page.goto("https://www.idealista.com/login", wait_until="domcontentloaded")
 
             time.sleep(2)
 
@@ -597,7 +597,7 @@ class IdealistaBot:
         """Get all listing URLs from search page"""
         try:
             logging.info(f"Navigating to search URL...")
-            self.page.goto(self.search_url, wait_until="networkidle")
+            self.page.goto(self.search_url, wait_until="domcontentloaded")
 
             self.dismiss_cookie_consent()
 
@@ -695,7 +695,7 @@ class IdealistaBot:
 
             # Navigate to listing with human-like delay
             random_delay(1, 3)
-            self.page.goto(listing_url, wait_until="networkidle")
+            self.page.goto(listing_url, wait_until="domcontentloaded")
 
             # Check for CAPTCHA/block before doing anything else
             blocked, reason = self.detect_captcha_or_block()
