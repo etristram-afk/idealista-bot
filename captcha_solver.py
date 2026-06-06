@@ -37,6 +37,13 @@ def _extract_datadome_captcha_url(page, attempts: int = 3, delay: float = 1.0) -
                     return None, True
                 logging.info(f"DataDome captcha URL found on attempt {attempt}/{attempts}")
                 return url, False
+            # No challenge URL in the page, but DataDome may have served a
+            # bare 403 + bootstrap with t=bv inside the inline `dd={...}` object
+            # (no captcha endpoint to point at). Catch that form too so the
+            # caller can trigger the IP-burn cooldown instead of hammering.
+            if re.search(r"""['"]t['"]\s*:\s*['"]bv['"]""", html):
+                logging.warning("DataDome bootstrap reports t=bv (IP flagged) — solver cannot help")
+                return None, True
         except Exception as e:
             logging.debug(f"Error extracting DataDome URL (attempt {attempt}): {e}")
         if attempt < attempts:
