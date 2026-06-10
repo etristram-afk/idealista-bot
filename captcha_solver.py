@@ -14,7 +14,7 @@ import requests
 CAPSOLVER_ENDPOINT = "https://api.capsolver.com"
 
 
-def _extract_datadome_captcha_url(page, attempts: int = 3, delay: float = 1.0) -> tuple[str | None, bool]:
+def _extract_datadome_captcha_url(page, attempts: int = 12, delay: float = 1.0) -> tuple[str | None, bool]:
     """
     Look for a DataDome captcha URL in the current page HTML.
 
