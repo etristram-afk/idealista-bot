@@ -66,8 +66,12 @@ def get_cookies_via_cdp():
         log(f"Connecting to {label}: {ws_url}")
         ws = websocket.create_connection(ws_url, timeout=10)
         try:
-            ws.send(json.dumps({"id": 1, "method": "Network.getAllCookies"}))
-            log("Sent Network.getAllCookies, waiting for response...")
+            # Storage.getCookies works on both browser and page targets without
+            # needing Network.enable first; Network.getAllCookies was removed
+            # from the browser target in Chrome 149 and silently returns 0 on a
+            # page target unless Network is enabled first.
+            ws.send(json.dumps({"id": 1, "method": "Storage.getCookies"}))
+            log("Sent Storage.getCookies, waiting for response...")
             for i in range(30):
                 raw = ws.recv()
                 response = json.loads(raw)
