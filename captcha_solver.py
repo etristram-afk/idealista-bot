@@ -4,6 +4,7 @@ DataDome CAPTCHA auto-solver via CapSolver API.
 Integrates with an existing Patchright/Playwright browser context.
 """
 
+import html as _html
 import logging
 import re
 import time
@@ -31,7 +32,10 @@ def _extract_datadome_captcha_url(page, attempts: int = 3, delay: float = 1.0) -
             html = page.content()
             match = re.search(r'https://geo\.captcha-delivery\.com/captcha/\?[^"\'>\s]+', html)
             if match:
-                url = match.group(0)
+                # page.content() returns rendered HTML, so & in query strings
+                # comes back as &amp; — CapSolver fails to parse that and
+                # rejects the task with an opaque referer/captchaUrl error.
+                url = _html.unescape(match.group(0))
                 if "t=bv" in url:
                     logging.warning("DataDome returned t=bv (IP flagged) — solver cannot help")
                     return None, True
