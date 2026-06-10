@@ -401,15 +401,19 @@ class IdealistaBot:
             _state = _json.load(_f)
 
         # Explicit UA override: belt-and-suspenders in case the binary's default
-        # ever leaks "Headless" again. Matches Linux x86_64 Chrome 148 to stay
-        # consistent with navigator.platform reported from inside the container.
+        # ever leaks "Headless" again. Pinned to **Windows** Chrome 146 because
+        # CapSolver's DatadomeSliderTask only accepts Windows Chrome 137-146 —
+        # any other platform/version returns ERROR_INVALID_TASK_DATA. The UA
+        # sent to CapSolver MUST match the UA presented to idealista, otherwise
+        # the cookie CapSolver hands back is bound to the wrong UA and DataDome
+        # rejects it on the next request.
         self.context = self.browser.new_context(
             storage_state=_state,
             viewport={'width': 1280, 'height': 900},
             locale='es-ES',
             timezone_id='Europe/Madrid',
             permissions=['geolocation'],
-            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
         )
         self.page = self.context.new_page()
 
